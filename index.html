@@ -78,6 +78,10 @@
                 if (window.lucide) window.lucide.createIcons();
             }, [participants, draws, transactions, view]);
 
+            const updateParticipantName = (id, newName) => {
+                setParticipants(prev => prev.map(p => p.id === id ? { ...p, name: newName } : p));
+            };
+
             const addDeposit = (participantId, amount) => {
                 const val = parseFloat(amount);
                 if (isNaN(val) || val <= 0) return;
@@ -253,12 +257,35 @@
                             </div>
                         )}
                         {view === 'settings' && (
-                            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 max-w-xl mx-auto">
-                                <h2 className="text-xl font-black mb-8 uppercase">Ajustes</h2>
-                                {participants.map(p => (
-                                    <input key={p.id} type="text" value={p.name} onChange={(e) => setParticipants(prev => prev.map(x => x.id === p.id ? {...x, name: e.target.value} : x))} className="w-full bg-slate-50 mb-3 border-none rounded-xl px-4 py-3 font-bold" />
-                                ))}
-                                <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full mt-6 text-rose-500 font-bold p-4 hover:bg-rose-50 rounded-2xl">Resetear Todo</button>
+                            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 max-w-xl mx-auto animate-in">
+                                <h2 className="text-xl font-black mb-8 uppercase">Ajustes de Socios</h2>
+                                <div className="space-y-3">
+                                    {participants.map(p => (
+                                        <div key={p.id} className="space-y-1">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Socio {p.id}</label>
+                                            <input 
+                                                type="text" 
+                                                value={p.name} 
+                                                onChange={(e) => updateParticipantName(p.id, e.target.value)} 
+                                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500" 
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="mt-10 pt-6 border-t border-slate-50 flex flex-col gap-3">
+                                    <button 
+                                        onClick={() => { notify("Cambios guardados localmente"); setView('dashboard'); }} 
+                                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all"
+                                    >
+                                        Guardar y Volver
+                                    </button>
+                                    <button 
+                                        onClick={() => { if(confirm("¿Estás seguro de borrar todos los datos de la peña?")) { localStorage.clear(); window.location.reload(); }}} 
+                                        className="w-full py-4 text-rose-500 font-bold text-sm hover:bg-rose-50 rounded-2xl transition-all"
+                                    >
+                                        Resetear Todo
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </main>
