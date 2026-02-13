@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primitiva Borobil - Gestor de Lotería</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel para JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .animate-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-[#F8FAFC]">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        
+        // Mock de Lucide para que funcione via CDN
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => {
+                lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+        };
+
+        const App = () => {
+            const [participants, setParticipants] = useState([
+                { id: 1, name: 'Socio 1', balance: 0, totalPaid: 0, totalWon: 0 },
+                { id: 2, name: 'Socio 2', balance: 0, totalPaid: 0, totalWon: 0 },
+                { id: 3, name: 'Socio 3', balance: 0, totalPaid: 0, totalWon: 0 },
+                { id: 4, name: 'Socio 4', balance: 0, totalPaid: 0, totalWon: 0 },
+                { id: 5, name: 'Socio 5', balance: 0, totalPaid: 0, totalWon: 0 },
+                { id: 6, name: 'Socio 6', balance: 0, totalPaid: 0, totalWon: 0 },
+            ]);
+
+            const [draws, setDraws] = useState([]);
+            const [transactions, setTransactions] = useState([]);
+            const [view, setView] = useState('dashboard'); 
+            const [notification, setNotification] = useState(null);
+
+            const APP_NAME = "Primitiva Borobil";
+            const OUR_NUMBERS = "2 8 13 16 23 37";
+            const REINTEGRO = "R9";
+            const TOTAL_TICKET_COST = 1.00; 
+            const TOTAL_MEMBERS = 6;
+            const COST_PER_PERSON = TOTAL_TICKET_COST / TOTAL_MEMBERS;
+
+            const notify = (msg) => {
+                setNotification(msg);
+                setTimeout(() => setNotification(null), 3000);
+            };
+
+            useEffect(() => {
+                const savedParticipants = localStorage.getItem('primitiva_v2_participants');
+                const savedDraws = localStorage.getItem('primitiva_v2_draws');
+                const savedTransactions = localStorage.getItem('primitiva_v2_transactions');
+                
+                if (savedParticipants) setParticipants(JSON.parse(savedParticipants));
+                if (savedDraws) setDraws(JSON.parse(savedDraws));
+                if (savedTransactions) setTransactions(JSON.parse(savedTransactions));
+            }, []);
+
+            useEffect(() => {
+                localStorage.setItem('primitiva_v2_participants', JSON.stringify(participants));
+                localStorage.setItem('primitiva_v2_draws', JSON.stringify(draws));
+                localStorage.setItem('primitiva_v2_transactions', JSON.stringify(transactions));
+                if (window.lucide) window.lucide.createIcons();
+            }, [participants, draws, transactions, view]);
+
+            const addDeposit = (participantId, amount) => {
+                const val = parseFloat(amount);
+                if (isNaN(val) || val <= 0) return;
+                setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, balance: p.balance + val, totalPaid: p.totalPaid + val } : p));
+                const socio = participants.find(x => x.id === participantId);
+                setTransactions(prev => [{ id: Date.now(), type: 'Ingreso', amount: val, date: new Date().toLocaleDateString(), description: `Ingreso: ${socio.name}` }, ...prev]);
+                notify(`+${val.toFixed(2)}€ añadidos a ${socio.name}`);
+            };
+
+            const registerDraw = (numbers, date, prize = 0) => {
+                const prizeVal = parseFloat(prize || 0);
+                const prizePerPerson = prizeVal / TOTAL_MEMBERS;
+                setParticipants(prev => prev.map(p => ({ ...p, balance: p.balance - COST_PER_PERSON + prizePerPerson, totalWon: p.totalWon + prizePerPerson })));
+                setDraws(prev => [{ id: Date.now(), date, numbers, totalPrize: prizeVal, prizePerPerson, costPerPerson: COST_PER_PERSON }, ...prev]);
+                setTransactions(prev => [{ id: Date.now() + 1, type: 'Gasto', amount: -TOTAL_TICKET_COST, date, description: `Sorteo Primitiva (1€)` }, ...(prizeVal > 0 ? [{ id: Date.now() + 2, type: 'Premio', amount: prizeVal, date, description: `Premio: ${numbers}` }] : []), ...prev]);
+                notify("Sorteo registrado");
+            };
+
+            const stats = useMemo(() => {
+                const invested = draws.length * TOTAL_TICKET_COST;
+                const won = draws.reduce((acc, curr) => acc + curr.totalPrize, 0);
+                return { invested, won, net: won - invested };
+            }, [draws]);
+
+            const Dashboard = () => (
+                <div className="space-y-6 animate-in">
+                    <div className="bg-gradient-to-br from-indigo-700 via-indigo-800 to-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group border border-white/10">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:rotate-12 transition-transform">
+                            <Icon name="hash" size={120} />
+                        </div>
+                        <div className="relative z-10">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Icon name="star" size={14} className="text-amber-400 fill-amber-400" />
+                                <p className="text-indigo-100 text-[10px] font-black uppercase tracking-[0.3em]">Nuestra Combinación Fija</p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                {OUR_NUMBERS.split(" ").map((n, i) => (
+                                    <span key={i} className="flex items-center justify-center w-11 h-11 bg-white/10 backdrop-blur-xl rounded-2xl font-black text-xl border border-white/20 shadow-inner">
+                                        {n}
+                                    </span>
+                                ))}
+                                <div className="w-px h-8 bg-white/20 mx-1 hidden sm:block"></div>
+                                <span className="flex items-center justify-center px-4 h-11 bg-amber-500 rounded-2xl font-black text-xl text-slate-900 shadow-lg shadow-amber-500/20">
+                                    {REINTEGRO}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                            <Icon name="trending-down" className="text-rose-500 mb-2" />
+                            <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider">Inversión Peña</p>
+                            <p className="text-2xl font-black text-slate-800">{stats.invested.toFixed(2)}€</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                            <Icon name="trophy" className="text-emerald-500 mb-2" />
+                            <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider">Premios Totales</p>
+                            <p className="text-2xl font-black text-emerald-600">{stats.won.toFixed(2)}€</p>
+                        </div>
+                        <div className="bg-slate-900 p-6 rounded-[2rem] shadow-xl text-white">
+                            <Icon name="wallet" className="text-indigo-400 mb-2" />
+                            <p className="text-white/50 text-[10px] font-black uppercase tracking-wider">Resultado Neto</p>
+                            <p className={`text-2xl font-black ${stats.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {stats.net.toFixed(2)}€
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+                        <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                            <h3 className="font-black text-slate-800 flex items-center gap-2 uppercase text-xs">
+                                <Icon name="users" className="text-indigo-500" /> Estado de Cuenta
+                            </h3>
+                            <span className="text-[10px] font-black bg-white border border-slate-200 text-slate-500 px-3 py-1 rounded-full uppercase italic">0.17€/jugada</span>
+                        </div>
+                        <div className="divide-y divide-slate-50">
+                            {participants.map(p => (
+                                <div key={p.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg ${p.balance >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                            {p.name.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <p className="font-black text-slate-800">{p.name}</p>
+                                            <p className={`text-sm font-bold ${p.balance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                {p.balance.toFixed(2)}€
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <input id={`input-${p.id}`} type="number" placeholder="Importe" className="bg-slate-100 border-none rounded-xl px-4 py-3 text-sm w-32 outline-none font-bold" />
+                                        <button onClick={() => { const el = document.getElementById(`input-${p.id}`); addDeposit(p.id, el.value); el.value = ''; }} className="p-3 bg-indigo-600 text-white rounded-xl active:scale-90 transition-all">
+                                            <Icon name="plus-circle" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const DrawView = () => {
+                const [nums, setNums] = useState(`${OUR_NUMBERS} (${REINTEGRO})`);
+                const [prz, setPrz] = useState("");
+                const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+                return (
+                    <div className="max-w-xl mx-auto space-y-6 animate-in">
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+                            <h2 className="text-xl font-black text-slate-800 mb-8 flex items-center gap-3 uppercase">
+                                <Icon name="calendar" className="text-indigo-600" /> Registrar Sorteo
+                            </h2>
+                            <div className="space-y-6">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha</label>
+                                    <input type="date" className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold" value={date} onChange={e => setDate(e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Números Jugados</label>
+                                    <input type="text" className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-mono font-bold text-indigo-600" value={nums} onChange={e => setNums(e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Premio Total (€)</label>
+                                    <input type="number" className="w-full p-4 bg-slate-50 rounded-2xl outline-none text-2xl font-black" value={prz} onChange={e => setPrz(e.target.value)} />
+                                </div>
+                                <button onClick={() => { registerDraw(nums, date, prz); setView('dashboard'); }} className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black text-lg shadow-xl">
+                                    REGISTRAR (COSTE 1€)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="min-h-screen pb-32">
+                    {notification && (
+                        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in font-bold text-sm">
+                            <Icon name="check-circle-2" className="text-emerald-400" /> {notification}
+                        </div>
+                    )}
+                    <header className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-100">
+                        <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
+                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView('dashboard')}>
+                                <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black italic">B</div>
+                                <h1 className="font-black text-lg uppercase tracking-tighter leading-none">{APP_NAME}</h1>
+                            </div>
+                            <button onClick={() => setView(view === 'settings' ? 'dashboard' : 'settings')} className={`p-3 rounded-2xl ${view === 'settings' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                <Icon name="settings" />
+                            </button>
+                        </div>
+                    </header>
+
+                    <main className="max-w-4xl mx-auto px-6 pt-8">
+                        {view === 'dashboard' && <Dashboard />}
+                        {view === 'draws' && <DrawView />}
+                        {view === 'history' && (
+                            <div className="space-y-4 animate-in">
+                                {draws.map(d => (
+                                    <div key={d.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl"><Icon name="calendar" /></div>
+                                            <div><p className="text-[10px] font-black text-slate-400 uppercase">{d.date}</p><p className="font-mono font-black text-indigo-600 text-lg">{d.numbers}</p></div>
+                                        </div>
+                                        <div className="flex items-center gap-6 bg-slate-50 p-4 rounded-2xl">
+                                            <div className="text-right"><p className="text-[9px] font-black text-slate-400 uppercase">Premio</p><p className="font-black text-emerald-600">+{d.totalPrize.toFixed(2)}€</p></div>
+                                            <div className="w-px h-8 bg-slate-200"></div>
+                                            <div className="text-right"><p className="text-[9px] font-black text-slate-400 uppercase">Socio</p><p className="font-black text-slate-800">+{d.prizePerPerson.toFixed(2)}€</p></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {view === 'settings' && (
+                            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 max-w-xl mx-auto">
+                                <h2 className="text-xl font-black mb-8 uppercase">Ajustes</h2>
+                                {participants.map(p => (
+                                    <input key={p.id} type="text" value={p.name} onChange={(e) => setParticipants(prev => prev.map(x => x.id === p.id ? {...x, name: e.target.value} : x))} className="w-full bg-slate-50 mb-3 border-none rounded-xl px-4 py-3 font-bold" />
+                                ))}
+                                <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full mt-6 text-rose-500 font-bold p-4 hover:bg-rose-50 rounded-2xl">Resetear Todo</button>
+                            </div>
+                        )}
+                    </main>
+
+                    <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-sm h-20 bg-slate-900 rounded-[2.5rem] shadow-2xl flex items-center justify-around px-4 z-50">
+                        <button onClick={() => setView('dashboard')} className={`flex flex-col items-center w-14 h-14 rounded-2xl transition-all ${view === 'dashboard' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}><Icon name="wallet" /><span className="text-[8px] font-black mt-1 uppercase">Saldos</span></button>
+                        <button onClick={() => setView('draws')} className={`flex flex-col items-center w-14 h-14 rounded-2xl transition-all ${view === 'draws' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}><Icon name="plus-circle" /><span className="text-[8px] font-black mt-1 uppercase">Sorteo</span></button>
+                        <button onClick={() => setView('history')} className={`flex flex-col items-center w-14 h-14 rounded-2xl transition-all ${view === 'history' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}><Icon name="history" /><span className="text-[8px] font-black mt-1 uppercase">Log</span></button>
+                    </nav>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
